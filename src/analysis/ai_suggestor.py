@@ -1,13 +1,21 @@
 import requests
 import os
 import json
-from .dockerfile_parser import DockerfileParser  # Fixed relative import
+from dotenv import load_dotenv
+from .dockerfile_parser import DockerfileParser
+
+# Load environment variables from .env file
+load_dotenv()
 
 class GroqAISuggestor:
     def __init__(self, api_key=None):
         self.api_key = api_key or os.getenv('GROQ_API_KEY')
+        self.demo_mode = False
+        
         if not self.api_key:
-            raise ValueError("GROQ_API_KEY not found. Please set environment variable.")
+            print("⚠️  GROQ_API_KEY not found. Running in demo mode with sample suggestions.")
+            self.demo_mode = True
+            return
         
         self.api_url = "https://api.groq.com/openai/v1/chat/completions"
         self.headers = {
@@ -16,6 +24,9 @@ class GroqAISuggestor:
         }
     
     def get_suggestions(self, dockerfile_path):
+        if self.demo_mode:
+            return self._get_demo_suggestions(dockerfile_path)
+            
         parser = DockerfileParser(dockerfile_path)
         commands = parser.parse()
         
@@ -55,6 +66,27 @@ class GroqAISuggestor:
                 
         except Exception as e:
             return {"error": f"Request failed: {str(e)}"}
+    
+    def _get_demo_suggestions(self, dockerfile_path):
+        """Return sample suggestions for demo purposes"""
+        sample_suggestions = """
+BASE IMAGE OPTIMIZATION:
+- Consider using a smaller base image like alpine or slim variants
+- Use multi-stage builds to reduce final image size
+
+LAYER OPTIMIZATION:
+- Combine RUN commands to reduce layer count
+- Clean up package manager cache in the same layer
+
+DEPENDENCIES:
+- Remove unnecessary packages and dependencies
+- Use specific version tags instead of 'latest'
+
+SECURITY:
+- Run as non-root user when possible
+- Regularly update base images for security patches
+"""
+        return {"suggestions": sample_suggestions, "source": "Demo Mode"}
 
     def print_suggestions(self, result):
         if "error" in result:
@@ -62,12 +94,10 @@ class GroqAISuggestor:
             return
         
         print("=" * 60)
-        print(f"🤖 AI SUGGESTIONS FROM: {result.get('source', 'Groq Cloud')}")
+        if self.demo_mode:
+            print("🤖 DEMO SUGGESTIONS (Get API key for real AI analysis)")
+        else:
+            print(f"🤖 AI SUGGESTIONS FROM: {result.get('source', 'Groq Cloud')}")
         print("=" * 60)
         print(result['suggestions'])
         print("=" * 60)
-
-if __name__ == "__main__":
-    suggestor = GroqAISuggestor()
-    result = suggestor.get_suggestions('Dockerfile')
-    suggestor.print_suggestions(result)
